@@ -1,4 +1,27 @@
 import numpy as np
+import opendssdirect as dss
+
+def run_opendss_simulation(total_ev_load_kw):
+    """
+    Runs a snapshot OpenDSS simulation with the given EV load.
+    Returns the per-unit voltages at all buses.
+    """
+    dss.Text.Command("clear")
+    dss.Text.Command("compile [master.dss]")
+    
+    # Find the load object connected to the EVCS bus
+    dss.Loads.First()
+    while True:
+        bus = dss.CktElement.BusNames()[0].split('.')[0]
+        if bus.upper() == ev_parameters.evcs_bus[0].upper():
+            dss.Loads.kW(dss.Loads.kW() + total_ev_load_kw)
+            break
+        if dss.Loads.Next() == 0:
+            break
+            
+    dss.Text.Command("solve")
+    
+    return dss.Circuit.AllBusMagPu()
 
 def uncontrolled_charging(initial_soc, num_control_steps, control_interval, battery_capacity, charging_efficiency, arrival_time_idx, departure_time_idx, num_evs, max_charging_rate, desired_state_of_charge):
     """
@@ -170,8 +193,7 @@ def calculate_cost_per_step(charging_rate, electricity_price, num_control_steps,
 
 def fitness_function(charging_rate):
     """
-    Fitness function for PSO. Minimize cost while meeting SOC requirements.
-    Includes penalty for undershooting the target SOC.
+    Fitness function for PSO. Minimize cost while meeting SOC and grid voltage requirements.
     """
     
     from ev_parameters import (
@@ -182,33 +204,33 @@ def fitness_function(charging_rate):
         departure_time_hr, departure_time_idx,
         soc_ini_mean, soc_ini_std_dev, soc_ini_lower_bound, soc_ini_upper_bound,
         initial_soc, desired_state_of_charge, charging_energy
-    )   
+    )
   
-
-    
     # Pass necessary parameters to helper functions
     soc = calculate_soc(initial_soc, charging_rate, num_control_steps, control_interval, battery_capacity, charging_efficiency, arrival_time_idx, departure_time_idx, num_evs)
-    cost = calculate_cost(charging_rate, electricity_price, num_control_steps, control_interval, num_evs, arrival_time_idx, departure_time_idx)   
+    cost = calculate_cost(charging_rate, electricity_price, num_control_steps, control_interval, num_evs, arrival_time_idx, departure_time_idx)
     
     # --- Penalties ---
     undershoot_penalty = 0
-    # Penlty for not meeting the required SoC
-    for ev in range(num_evs):
-        # Check SOC at the control step *before* departure
-        dep_check_idx = departure_time_idx[ev] 
-        if dep_check_idx >= 0 and dep_check_idx < num_control_steps: # Ensure index is valid
-            final_soc = soc[ev, dep_check_idx]
+    voltage_penalty = 0
 
-            # Penalty for not meeting the desired SOC (undershooting)
+    # Penalty for not meeting the required SoC
+    for ev in range(num_evs):
+        dep_check_idx = departure_time_idx[ev]
+        if dep_check_idx >= 0 and dep_check_idx < num_control_steps:
+            final_soc = soc[ev, dep_check_idx]
             if final_soc < desired_state_of_charge:
-                # High penalty for undershooting
-                # Use a small tolerance (e.g., 0.001) to avoid penalizing floating point inaccuracies near 1.0
-              #  undershoot_penalty += 10000 * (desired_state_of_charge - final_soc)**2
               undershoot_penalty += 100
 
+    # Penalty for voltage violations
+    total_ev_load_kw = np.sum(charging_rate, axis=0)
+    for t in range(num_control_steps):
+        voltages = run_opendss_simulation(total_ev_load_kw[t])
+        if np.any(voltages > 1.05) or np.any(voltages < 0.95):
+            voltage_penalty += 1000
+
     # Total fitness is cost plus all penalties
-    return cost + undershoot_penalty  # Removed overshoot_penalty
-    # return cost
+    return cost + undershoot_penalty + voltage_penalty
    
      
 
