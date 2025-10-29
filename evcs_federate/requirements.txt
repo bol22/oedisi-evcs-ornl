@@ -1,0 +1,5 @@
+helics
+pydantic
+oedisi
+numpy
+scipy

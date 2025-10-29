@@ -1,0 +1,25 @@
+{
+    "name": "EVCS",
+    "ports": [
+        {
+            "name": "powers_real_in",
+            "type": "PowersReal",
+            "direction": "input"
+        },
+        {
+            "name": "powers_imag_in",
+            "type": "PowersImaginary",
+            "direction": "input"
+        },
+        {
+            "name": "ev_load_real",
+            "type": "PowersReal",
+            "direction": "output"
+        },
+        {
+            "name": "ev_load_imag",
+            "type": "PowersImaginary",
+            "direction": "output"
+        }
+    ]
+}

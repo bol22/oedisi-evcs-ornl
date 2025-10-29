@@ -1,0 +1,85 @@
+{
+    "name": "evcs_multicontainer_test",
+    "components": [
+        {
+            "name": "feeder",
+            "type": "LocalFeeder",
+            "host": "10.5.0.2",
+            "container_port": 5678,
+            "parameters": {
+                "use_smartds": false,
+                "user_uploads_model": false,
+                "profile_location": "gadal_ieee123/profiles",
+                "opendss_location": "gadal_ieee123/qsts",
+                "start_date": "2017-01-01 00:00:00",
+                "number_of_timesteps": 96,
+                "run_freq_sec": 900,
+                "topology_output": "topology.json"
+            }
+        },
+        {
+            "name": "evcs",
+            "type": "EVCS",
+            "host": "10.5.0.3",
+            "container_port": 5679
+        },
+        {
+            "name": "recorder_voltage_magnitude",
+            "type": "Recorder",
+            "host": "10.5.0.4",
+            "container_port": 5680,
+            "parameters": {
+                "feather_filename": "voltage_mag.feather",
+                "csv_filename": "voltage_mag.csv"
+            }
+        },
+        {
+            "name": "recorder_power_real",
+            "type": "Recorder",
+            "host": "10.5.0.5",
+            "container_port": 5681,
+            "parameters": {
+                "feather_filename": "powers_real.feather",
+                "csv_filename": "powers_real.csv"
+            }
+        }
+    ],
+    "links": [
+        {
+            "source": "feeder",
+            "source_port": "powers_real",
+            "target": "evcs",
+            "target_port": "powers_real_in"
+        },
+        {
+            "source": "feeder",
+            "source_port": "powers_imag",
+            "target": "evcs",
+            "target_port": "powers_imag_in"
+        },
+        {
+            "source": "evcs",
+            "source_port": "ev_load_real",
+            "target": "feeder",
+            "target_port": "ev_load_real"
+        },
+        {
+            "source": "evcs",
+            "source_port": "ev_load_imag",
+            "target": "feeder",
+            "target_port": "ev_load_imag"
+        },
+        {
+            "source": "feeder",
+            "source_port": "voltages_magnitude",
+            "target": "recorder_voltage_magnitude",
+            "target_port": "subscription"
+        },
+        {
+            "source": "feeder",
+            "source_port": "powers_real",
+            "target": "recorder_power_real",
+            "target_port": "subscription"
+        }
+    ]
+}
