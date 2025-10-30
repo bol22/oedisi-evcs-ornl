@@ -17,7 +17,7 @@ This use case is built on the OEDISI single-container framework, which uses HELI
 
 *   **`LocalFeeder`:** Simulates the IEEE 123-bus distribution network using OpenDSS. At each time step, it publishes the current state of the grid (voltages, power flows) and subscribes to the EV load from the `evcs_federate`.
 *   **`evcs_federate`:** Subscribes to the grid state from the `LocalFeeder`. It uses this information as the baseline for its internal, grid-aware PSO algorithm to determine the optimal and safest charging load for the EV station. It then publishes this load back to the `LocalFeeder`.
-*   **`recorder`:** A data sink component that subscribes to various data streams from the other federates to log the results of the simulation for later analysis.
+*   **`recorder`:**  Subscribes to various data streams from the other federates to log the results of the simulation for later analysis.
 
 ## How to Run the Simulation
 
@@ -38,12 +38,10 @@ This use case is designed to be run as a single-container simulation using the `
     oedisi build --system system.json --component-dict components.json
     ```
 
-2.  **Run the Co-simulation:**
+2.  **Run**
     Run the `oedisi run` command. This will automatically start the HELICS broker and all the federates in the correct order to execute the co-simulation.
 
     ```bash
     oedisi run
     ```
 
-3.  **Analyze the Results:**
-    The simulation results will be saved in the `outputs` directory. You can use the provided `evcs.ipynb` Jupyter Notebook to load and visualize the results, such as the voltage magnitudes at various buses over the simulation period.
