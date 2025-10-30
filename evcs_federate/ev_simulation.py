@@ -1,15 +1,23 @@
 import numpy as np
 import opendssdirect as dss
 
-def run_opendss_simulation(total_ev_load_kw):
+def run_opendss_simulation(total_ev_load_kw, feeder_loads_p, feeder_loads_q):
     """
-    Runs a snapshot OpenDSS simulation with the given EV load.
+    Runs a snapshot OpenDSS simulation with the given EV load and feeder loads.
     Returns the per-unit voltages at all buses.
     """
     dss.Text.Command("clear")
     dss.Text.Command("compile [master.dss]")
     
-    # Find the load object connected to the EVCS bus
+    # Apply feeder loads
+    for bus, p_kw in feeder_loads_p.items():
+        dss.Loads.Name(bus)
+        dss.Loads.kW(p_kw)
+    for bus, q_kvar in feeder_loads_q.items():
+        dss.Loads.Name(bus)
+        dss.Loads.kvar(q_kvar)
+
+    # Find the load object connected to the EVCS bus and add the EV load
     dss.Loads.First()
     while True:
         bus = dss.CktElement.BusNames()[0].split('.')[0]
@@ -191,7 +199,7 @@ def calculate_cost_per_step(charging_rate, electricity_price, num_control_steps,
     return cost_per_step
 
 
-def fitness_function(charging_rate):
+def fitness_function(charging_rate, feeder_loads_p, feeder_loads_q):
     """
     Fitness function for PSO. Minimize cost while meeting SOC and grid voltage requirements.
     """
@@ -225,7 +233,7 @@ def fitness_function(charging_rate):
     # Penalty for voltage violations
     total_ev_load_kw = np.sum(charging_rate, axis=0)
     for t in range(num_control_steps):
-        voltages = run_opendss_simulation(total_ev_load_kw[t])
+        voltages = run_opendss_simulation(total_ev_load_kw[t], feeder_loads_p, feeder_loads_q)
         if np.any(voltages > 1.05) or np.any(voltages < 0.95):
             voltage_penalty += 1000
 
@@ -235,7 +243,7 @@ def fitness_function(charging_rate):
      
 
 
-def ev_pso_optimization(num_particles, max_iterations):
+def ev_pso_optimization(num_particles, max_iterations, feeder_loads_p, feeder_loads_q):
     """
     Performs Particle Swarm Optimization to find the optimal charging schedule for electric vehicles.
 
@@ -287,7 +295,7 @@ def ev_pso_optimization(num_particles, max_iterations):
 
     velocities = np.random.uniform(-max_charging_rate * 0.1, max_charging_rate * 0.1, (num_particles, num_evs, num_control_steps))
     personal_best_positions = particles.copy()
-    personal_best_fitnesses = np.array([fitness_function(particles[i]) for i in range(num_particles)])
+    personal_best_fitnesses = np.array([fitness_function(particles[i], feeder_loads_p, feeder_loads_q) for i in range(num_particles)])
     global_best_index = np.argmin(personal_best_fitnesses)
     global_best_position = personal_best_positions[global_best_index].copy()
     global_best_fitness = personal_best_fitnesses[global_best_index]
@@ -334,7 +342,7 @@ def ev_pso_optimization(num_particles, max_iterations):
                         break
                 
             # Evaluate fitness
-            current_fitness = fitness_function(particles[i])
+            current_fitness = fitness_function(particles[i], feeder_loads_p, feeder_loads_q)
 
             # Update personal best
             if current_fitness < personal_best_fitnesses[i]:

@@ -72,10 +72,16 @@ class EVCSFederate:
                 )
                 continue
 
-            charging_rate, _ = ev_simulation.ev_pso_optimization(num_particles, max_iterations)
+            power_P = self.sub_power_P.json
+            power_Q = self.sub_power_Q.json
+            
+            feeder_loads_p = {bus: p for bus, p in zip(power_P.ids, power_P.values)}
+            feeder_loads_q = {bus: q for bus, q in zip(power_Q.ids, power_Q.values)}
+
+            charging_rate, _ = ev_simulation.ev_pso_optimization(num_particles, max_iterations, feeder_loads_p, feeder_loads_q)
             total_charging_power = np.sum(charging_rate, axis = 0)
             
-            time = self.sub_power_P.json.time
+            time = power_P.time
 
             ev_load_real = PowersReal(
                 ids=ev_parameters.evcs_bus,
