@@ -272,7 +272,10 @@ class FeederSimulator(object):
     def load_feeder(self):
         """Load feeder once downloaded. Relies on legacy mode."""
         # Real solution is kvarlimit with kvarmax
-        dss.Basic.LegacyModels(True)
+        try:
+            dss.Basic.LegacyModels(True)
+        except Exception:
+            pass  # LegacyModels not supported in newer OpenDSS versions
         dss.Text.Command("clear")
         dss.Text.Command("redirect " + self._feeder_file)
         result = dss.Text.Result()
@@ -374,7 +377,7 @@ class FeederSimulator(object):
 
     def setup_vbase(self):
         """Load base voltages into feeder."""
-        self._Vbase_allnode = np.zeros((self._node_number), dtype=np.complex_)
+        self._Vbase_allnode = np.zeros((self._node_number), dtype=np.complex128)
         self._Vbase_allnode_dict = {}
         for ii, node in enumerate(self._AllNodeNames):
             self._circuit.SetActiveBus(node)
@@ -595,7 +598,7 @@ class FeederSimulator(object):
             and self._state != OpenDSSState.UNLOADED
         ), f"{self._state}"
         name_voltage_dict = get_voltages(self._circuit)
-        res_feeder_voltages = np.zeros((len(self._AllNodeNames)), dtype=np.complex_)
+        res_feeder_voltages = np.zeros((len(self._AllNodeNames)), dtype=np.complex128)
         for voltage_name in name_voltage_dict.keys():
             res_feeder_voltages[self._name_index_dict[voltage_name]] = (
                 name_voltage_dict[voltage_name]
@@ -606,18 +609,30 @@ class FeederSimulator(object):
         )
 
     def apply_power_injection(self, power_real, power_imag):
-        """Apply power injections to the feeder."""
+        """Apply power injections to the feeder.
+
+        If a load with the given bus_id doesn't exist, the injection is skipped
+        with a warning logged. This allows the simulation to continue even when
+        the bus doesn't match an existing load in the OpenDSS model.
+        """
         assert self._state != OpenDSSState.UNLOADED, f"{self._state}"
-        
+
         for bus_id, p_kw in zip(power_real.ids, power_real.values):
-            dss.Circuit.SetActiveBus(bus_id)
-            dss.Loads.Name(bus_id)
-            dss.Loads.kW(dss.Loads.kW() + p_kw)
+            try:
+                dss.Circuit.SetActiveBus(bus_id)
+                dss.Loads.Name(bus_id)
+                dss.Loads.kW(dss.Loads.kW() + p_kw)
+                logger.info(f"Applied {p_kw:.2f} kW to load at bus {bus_id}")
+            except Exception as e:
+                logger.warning(f"Could not apply power injection to bus {bus_id}: {e}")
 
         for bus_id, q_kvar in zip(power_imag.ids, power_imag.values):
-            dss.Circuit.SetActiveBus(bus_id)
-            dss.Loads.Name(bus_id)
-            dss.Loads.kvar(dss.Loads.kvar() + q_kvar)
+            try:
+                dss.Circuit.SetActiveBus(bus_id)
+                dss.Loads.Name(bus_id)
+                dss.Loads.kvar(dss.Loads.kvar() + q_kvar)
+            except Exception as e:
+                logger.warning(f"Could not apply reactive power injection to bus {bus_id}: {e}")
 
     def change_obj(self, change_commands: List[Command]):
         """set/get an object property.

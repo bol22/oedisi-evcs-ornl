@@ -1,35 +1,92 @@
 import numpy as np
 import opendssdirect as dss
+import os
 
 def run_opendss_simulation(total_ev_load_kw, feeder_loads_p, feeder_loads_q):
     """
-    Runs a snapshot OpenDSS simulation with the given EV load and feeder loads.
-    Returns the per-unit voltages at all buses.
-    """
-    dss.Text.Command("clear")
-    dss.Text.Command("compile [master.dss]")
-    
-    # Apply feeder loads
-    for bus, p_kw in feeder_loads_p.items():
-        dss.Loads.Name(bus)
-        dss.Loads.kW(p_kw)
-    for bus, q_kvar in feeder_loads_q.items():
-        dss.Loads.Name(bus)
-        dss.Loads.kvar(q_kvar)
+    Runs OpenDSS power flow with EV load and feeder loads.
+    Returns per-unit voltages at all buses for constraint checking.
 
-    # Find the load object connected to the EVCS bus and add the EV load
-    dss.Loads.First()
-    while True:
-        bus = dss.CktElement.BusNames()[0].split('.')[0]
-        if bus.upper() == ev_parameters.evcs_bus[0].upper():
-            dss.Loads.kW(dss.Loads.kW() + total_ev_load_kw)
-            break
-        if dss.Loads.Next() == 0:
-            break
-            
-    dss.Text.Command("solve")
-    
-    return dss.Circuit.AllBusMagPu()
+    The EVCS federate has its own local OpenDSS model (master.dss) for
+    internal voltage constraint checking during PSO optimization.
+    """
+    # Load bus IDs (from IEEE 123-bus model)
+    load_ids = ['1.1', '2.2', '4.3', '5.3', '6.3', '7.1', '9.1', '10.1', '11.1', '12.2',
+                '16.3', '17.3', '19.1', '20.1', '22.2', '24.3', '28.1', '29.1', '30.3',
+                '31.3', '32.3', '33.1', '34.3', '35.1', '35.2', '37.1', '38.2', '39.2',
+                '41.3', '42.1', '43.2', '45.1', '46.1', '47.1', '47.2', '47.3', '48.1',
+                '48.2', '48.3', '49.1', '49.2', '49.3', '50.3', '51.1', '52.1', '53.1',
+                '55.1', '56.2', '58.2', '59.2', '60.1', '62.3', '63.1', '64.2', '65.1',
+                '65.2', '65.3', '66.3', '68.1', '69.1', '70.1', '71.1', '73.3', '74.3',
+                '75.3', '76.1', '76.2', '76.3', '77.2', '79.1', '80.2', '82.1', '83.3',
+                '84.3', '85.3', '86.2', '87.2', '88.1', '90.2', '92.3', '94.1', '95.2',
+                '96.2', '98.1', '99.2', '100.3', '102.3', '103.3', '104.3', '106.2',
+                '107.2', '109.1', '111.1', '112.1', '113.1', '114.1']
+
+    from ev_parameters import evcs_bus
+
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    master_dss_path = os.path.join(script_dir, 'master.dss')
+
+    # Compile local OpenDSS model
+    dss.Text.Command("clear")
+    dss.Text.Command(f'Compile ({master_dss_path})')
+
+    # Set load values from feeder data
+    all_loads = dss.Loads.AllNames()
+    for load_name in all_loads:
+        # Try to find matching load in feeder data
+        for load_id in load_ids:
+            bus_name = load_id.split('.')[0]
+            if load_name.lower() == bus_name.lower() or load_name.lower() == f's{bus_name}'.lower():
+                if load_id in feeder_loads_p:
+                    try:
+                        dss.Loads.Name(load_name)
+                        dss.Loads.kW(feeder_loads_p[load_id])
+                        if load_id in feeder_loads_q:
+                            dss.Loads.kvar(feeder_loads_q[load_id])
+                    except Exception:
+                        pass
+                break
+
+    # Add EV load at EVCS bus
+    for bus in evcs_bus:
+        bus_name = bus.split('.')[0]
+        ev_load_name = f"EV_{bus_name}"
+
+        # Check if EV load already exists
+        if ev_load_name.lower() not in [n.lower() for n in dss.Loads.AllNames()]:
+            # Create new EV load
+            dss.Text.Command(f"New Load.{ev_load_name} Bus1={bus} kW={total_ev_load_kw} kvar=0 model=1")
+        else:
+            # Update existing EV load
+            dss.Loads.Name(ev_load_name)
+            dss.Loads.kW(total_ev_load_kw)
+
+    # Solve power flow
+    dss.Text.Command("Set mode = snapshot")
+    dss.Text.Command("Solve")
+
+    if not dss.Solution.Converged():
+        # Return high voltages to trigger penalty if not converged
+        return np.ones(len(load_ids)) * 1.1
+
+    # Get voltage magnitudes
+    all_node_names = [n.lower() for n in dss.Circuit.AllNodeNames()]
+    all_volt_mag = np.array(dss.Circuit.AllBusMagPu())
+
+    # Extract voltages at load buses
+    voltages = []
+    for load_id in load_ids:
+        if load_id.lower() in all_node_names:
+            idx = all_node_names.index(load_id.lower())
+            voltages.append(all_volt_mag[idx])
+        else:
+            # If bus not found, assume nominal voltage
+            voltages.append(1.0)
+
+    return np.array(voltages)
 
 def uncontrolled_charging(initial_soc, num_control_steps, control_interval, battery_capacity, charging_efficiency, arrival_time_idx, departure_time_idx, num_evs, max_charging_rate, desired_state_of_charge):
     """
@@ -230,12 +287,14 @@ def fitness_function(charging_rate, feeder_loads_p, feeder_loads_q):
             if final_soc < desired_state_of_charge:
               undershoot_penalty += 100
 
-    # Penalty for voltage violations
+    # Penalty for voltage violations (only if OpenDSS is available)
     total_ev_load_kw = np.sum(charging_rate, axis=0)
     for t in range(num_control_steps):
         voltages = run_opendss_simulation(total_ev_load_kw[t], feeder_loads_p, feeder_loads_q)
-        if np.any(voltages > 1.05) or np.any(voltages < 0.95):
-            voltage_penalty += 1000
+        # Skip voltage checking if OpenDSS is not available (co-simulation mode)
+        if voltages is not None:
+            if np.any(voltages > 1.05) or np.any(voltages < 0.95):
+                voltage_penalty += 1000
 
     # Total fitness is cost plus all penalties
     return cost + undershoot_penalty + voltage_penalty

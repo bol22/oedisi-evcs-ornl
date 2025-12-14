@@ -398,9 +398,15 @@ def go_cosim(
         for pv_set in pv_sets:
             sim.set_pv_output(pv_set[0].split(".")[1], pv_set[1], pv_set[2])
 
-        ev_load_real = PowersReal.parse_obj(sub_ev_load_real.json)
-        ev_load_imag = PowersImaginary.parse_obj(sub_ev_load_imag.json)
-        sim.apply_power_injection(ev_load_real, ev_load_imag)
+        # Handle EV load - check if subscription has valid data (not empty default)
+        ev_load_json = sub_ev_load_real.json
+        if isinstance(ev_load_json, dict) and 'ids' in ev_load_json:
+            ev_load_real = PowersReal.parse_obj(ev_load_json)
+            ev_load_imag = PowersImaginary.parse_obj(sub_ev_load_imag.json)
+            sim.apply_power_injection(ev_load_real, ev_load_imag)
+            logger.info(f"Applied EV load: {ev_load_real.values}")
+        else:
+            logger.debug("No EV load data available yet, skipping injection")
 
         logger.info(
             f"Solve at hour {floored_timestamp.hour} second "

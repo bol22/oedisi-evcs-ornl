@@ -1,5 +1,5 @@
 {
-    "name": "docker_test",
+    "name": "evcs_test_v1",
     "components": [
         {
             "name": "feeder",
@@ -49,7 +49,8 @@
             "name": "evcs",
             "type": "EVCS",
 			"host": "evcs",
-			"container_port": 5683
+			"container_port": 5683,
+            "parameters": {}
         }
     ],
     "links": [

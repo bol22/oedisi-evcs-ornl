@@ -72,9 +72,9 @@ class EVCSFederate:
                 )
                 continue
 
-            power_P = self.sub_power_P.json
-            power_Q = self.sub_power_Q.json
-            
+            power_P = PowersReal.parse_obj(self.sub_power_P.json)
+            power_Q = PowersImaginary.parse_obj(self.sub_power_Q.json)
+
             feeder_loads_p = {bus: p for bus, p in zip(power_P.ids, power_P.values)}
             feeder_loads_q = {bus: q for bus, q in zip(power_Q.ids, power_Q.values)}
 
@@ -83,13 +83,19 @@ class EVCSFederate:
             
             time = power_P.time
 
+            # Convert granted_time to integer index for array access
+            time_idx = int(granted_time)
+            # Extract equipment IDs from bus names (e.g., "48.1" -> "48")
+            equipment_ids = [bus.split('.')[0] for bus in ev_parameters.evcs_bus]
             ev_load_real = PowersReal(
                 ids=ev_parameters.evcs_bus,
-                values=[total_charging_power[granted_time]],
+                equipment_ids=equipment_ids,
+                values=[total_charging_power[time_idx]],
                 time=time
             )
             ev_load_imag = PowersImaginary(
                 ids=ev_parameters.evcs_bus,
+                equipment_ids=equipment_ids,
                 values=[0.0],
                 time=time
             )
@@ -116,18 +122,15 @@ def run_simulator(broker_config: BrokerConfig):
     with open("input_mapping.json") as f:
         input_mapping = json.load(f)
 
-    sfed = EVCSFederate(
-        federate_name, input_mapping, broker_config
-    )
-
     try:
         sfed = EVCSFederate(
-        federate_name, input_mapping, broker_config
+            federate_name, input_mapping, broker_config
         )
         logger.info("Value federate created")
     except h.HelicsException as e:
         logger.error(f"Failed to create HELICS Value Federate: {str(e)}")
-        
+        return
+
     sfed.run()
     logger.info(f"Running------------------------------------------------")
 

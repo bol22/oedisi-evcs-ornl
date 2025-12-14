@@ -1,25 +1,13 @@
 {
-    "name": "EVCS",
-    "ports": [
-        {
-            "name": "powers_real_in",
-            "type": "PowersReal",
-            "direction": "input"
-        },
-        {
-            "name": "powers_imag_in",
-            "type": "PowersImaginary",
-            "direction": "input"
-        },
-        {
-            "name": "ev_load_real",
-            "type": "PowersReal",
-            "direction": "output"
-        },
-        {
-            "name": "ev_load_imag",
-            "type": "PowersImaginary",
-            "direction": "output"
-        }
+    "directory": "evcs_federate",
+    "execute_function": "python evcs_federate.py",
+    "static_inputs": [],
+    "dynamic_inputs": [
+        {"type": "PowersReal", "port_id": "powers_real_in"},
+        {"type": "PowersImaginary", "port_id": "powers_imag_in"}
+    ],
+    "dynamic_outputs": [
+        {"type": "PowersReal", "port_id": "ev_load_real"},
+        {"type": "PowersImaginary", "port_id": "ev_load_imag"}
     ]
 }

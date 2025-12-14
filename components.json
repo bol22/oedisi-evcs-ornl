@@ -1,5 +1,5 @@
 {
-    "LocalFeeder": "LocalFeeder",
-    "EVCS": "evcs_federate",
-    "Recorder": "recorder"
+    "LocalFeeder": "LocalFeeder/component_definition.json",
+    "EVCS": "evcs_federate/component_definition.json",
+    "Recorder": "recorder/component_definition.json"
 }
