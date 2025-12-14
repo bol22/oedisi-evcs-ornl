@@ -19,11 +19,6 @@ oedisi build --system system.json --component-dict components.json
 oedisi run
 ```
 
-**Expected Output:**
-- PSO optimization runs with voltage constraints
-- Fitness values around $44-$67 (includes voltage penalties)
-- Check `build/evcs.log` for PSO iteration details
-
 ### Docker 
 
 ```bash
