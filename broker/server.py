@@ -30,6 +30,7 @@ app = FastAPI()
 
 WIRING_DIAGRAM_FILENAME = "system.json"
 WIRING_DIAGRAM: WiringDiagram | None = None
+BROKER: h.HelicsBroker | None = None
 
 @cache
 def kubernetes_service():
@@ -203,17 +204,18 @@ def _get_feeder_info(component_map: dict):
 
 
 async def run_simulation():
+    global BROKER
     component_map, broker_ip, api_port = read_settings()
     feeder_host, feeder_port = _get_feeder_info(component_map)
     logger.info(f"{broker_ip}, {api_port}")
     initstring = f"-f {len(component_map)-1} --name=mainbroker --loglevel=trace --local_interface={broker_ip} --localport=23404"
     logger.info(f"Broker initaialization string: {initstring}")
-    broker = h.helicsCreateBroker("zmq", "", initstring)
+    BROKER = h.helicsCreateBroker("zmq", "", initstring)
 
-    app.state.broker = broker
-    logger.info(f"Created broker: {broker}")
+    app.state.broker = BROKER
+    logger.info(f"Created broker: {BROKER}")
 
-    isconnected = h.helicsBrokerIsConnected(broker)
+    isconnected = h.helicsBrokerIsConnected(BROKER)
     logger.info(f"Broker connected: {isconnected}")
     logger.info(str(component_map))
     broker_host = socket.gethostname()
@@ -274,13 +276,27 @@ async def run_simulation():
                         except Exception as exc:
                             logger.error(f"Task {idx} failed: {exc}")
 
-    while h.helicsBrokerIsConnected(broker):
+    while h.helicsBrokerIsConnected(BROKER):
         time.sleep(1)   
-        query_result = broker.query("broker", "current_state")
+        query_result = BROKER.query("broker", "current_state")
         logger.info(f"Federates expected: {len(component_map)-1}")
-        logger.info(f"Federates connected: {len(broker.query("broker", "federates"))}")
+        logger.info(f"Federates connected: {len(BROKER.query("broker", "federates"))}")
         logger.info(f"Simulation state: {query_result['state']}")
-        logger.info(f"Global time: {query_result['attributes']['parent']}")
+        query_result = BROKER.query("broker", "global_state")
+        federates = {}
+        for core in query_result["cores"]:
+            for federate in core["federates"]:
+                federates[federate["attributes"]["name"]] = {"state": federate["state"]}
+        
+        query_result = BROKER.query("broker", "global_time")
+        for core in query_result["cores"]:
+            for federate in core["federates"]:
+                federates[federate["attributes"]["name"]]["requested_time"] = federate["send_time"]
+                federates[federate["attributes"]["name"]]["granted_time"] = federate["granted_time"]
+
+        logger.info(json.dumps(federates, indent=4))
+        
+
     h.helicsCloseLibrary()
 
     return

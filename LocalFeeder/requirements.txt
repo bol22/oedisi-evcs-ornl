@@ -1,5 +1,4 @@
-helics==3.4.0
-helics-apps==3.4.0
+helics
 pydantic
 pyarrow
 scipy
@@ -11,5 +10,5 @@ boto3
 xarray
 fastapi
 uvicorn
-oedisi==2.0.2
+oedisi
 python-multipart

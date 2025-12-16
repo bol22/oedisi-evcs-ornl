@@ -1,9 +1,11 @@
 FROM python:3.10.6-slim-bullseye
 RUN apt-get update
 RUN apt-get install -y git ssh
+RUN git clone https://github.com/openEDI/oedisi.git /oedisi
+RUN pip install /oedisi 
 RUN mkdir LocalFeeder
 COPY  . ./LocalFeeder
 WORKDIR ./LocalFeeder
 RUN pip install -r requirements.txt
 EXPOSE 5678/tcp
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "80"]
+CMD ["python", "server.py"]
