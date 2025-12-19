@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: oedisi
+  name: evcs-c5e5fce4-6529-41d1-bbb2-1e2486185fca-pod
+spec:
+  containers:
+  - env:
+    - name: PORT
+      value: '5683'
+    - name: SERVICE_NAME
+      value: svc-c5e5fce4-6529-41d1-bbb2-1e2486185fca
+    image: ''
+    name: evcs
+    ports:
+    - containerPort: 5683
+  hostname: evcs
+  subdomain: svc-c5e5fce4-6529-41d1-bbb2-1e2486185fca

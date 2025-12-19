@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: oedisi
+  name: recorder-voltage-magnitude-c5e5fce4-6529-41d1-bbb2-1e2486185fca-pod
+spec:
+  containers:
+  - env:
+    - name: PORT
+      value: '5682'
+    - name: SERVICE_NAME
+      value: svc-c5e5fce4-6529-41d1-bbb2-1e2486185fca
+    image: ''
+    name: recorder-voltage-magnitude
+    ports:
+    - containerPort: 5682
+  hostname: recorder-voltage-magnitude
+  subdomain: svc-c5e5fce4-6529-41d1-bbb2-1e2486185fca

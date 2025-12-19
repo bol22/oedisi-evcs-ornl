@@ -1,13 +1,11 @@
-FROM python:3.9-slim
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY *.dss .
-COPY *.csv .
-COPY *.txt .
-COPY . .
-
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "80"]
+FROM python:3.10.6-slim-bullseye
+RUN apt-get update
+RUN apt-get install -y git ssh
+RUN git clone https://github.com/openEDI/oedisi.git /oedisi
+RUN pip install /oedisi 
+RUN mkdir EVCS
+COPY  . ./EVCS
+WORKDIR ./EVCS
+RUN pip install -r requirements.txt
+EXPOSE 5683/tcp
+CMD ["python", "server.py"]

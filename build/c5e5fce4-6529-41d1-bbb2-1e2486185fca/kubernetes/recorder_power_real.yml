@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: oedisi
+  name: recorder-power-real-c5e5fce4-6529-41d1-bbb2-1e2486185fca-pod
+spec:
+  containers:
+  - env:
+    - name: PORT
+      value: '5680'
+    - name: SERVICE_NAME
+      value: svc-c5e5fce4-6529-41d1-bbb2-1e2486185fca
+    image: ''
+    name: recorder-power-real
+    ports:
+    - containerPort: 5680
+  hostname: recorder-power-real
+  subdomain: svc-c5e5fce4-6529-41d1-bbb2-1e2486185fca

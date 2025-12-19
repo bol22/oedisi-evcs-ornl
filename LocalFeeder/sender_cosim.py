@@ -366,7 +366,9 @@ def go_cosim(
     logger.info("Sending topology and saving to topology.json")
     with open(config.topology_output, "w") as f:
         f.write(initial_data.topology.json())
+    logger.info("Write complete")    
     pub_topology.publish(initial_data.topology.json())
+    logger.info("Initial topology published")
 
     granted_time = -1
     request_time = 0
@@ -388,10 +390,46 @@ def go_cosim(
         ) + timedelta(seconds=current_index * config.run_freq_sec)
 
         change_obj_cmds = CommandList.parse_obj(sub_command_set.json)
-        sim.change_obj(change_obj_cmds.__root__)
+        # Support both pydantic v1 ("__root__") and v2 ("root" or model_dump())
+        try:
+            cmds = change_obj_cmds.__root__
+        except Exception:
+            if hasattr(change_obj_cmds, "root"):
+                cmds = change_obj_cmds.root
+            else:
+                # fallback to model_dump() for pydantic v2 or the object itself
+                try:
+                    cmds = change_obj_cmds.model_dump()
+                except Exception:
+                    cmds = change_obj_cmds
+
+        sim.change_obj(cmds)
 
         inverter_controls = InverterControlList.parse_obj(sub_invcontrol.json)
-        for inv_control in inverter_controls.__root__:
+        # Support both pydantic v1 ("__root__") and v2 ("root" or model_dump())
+        try:
+            inv_list = inverter_controls.__root__
+        except Exception:
+            if hasattr(inverter_controls, "root"):
+                inv_list = inverter_controls.root
+            else:
+                try:
+                    inv_list = inverter_controls.model_dump()
+                except Exception:
+                    inv_list = inverter_controls
+
+        # If model_dump returned a dict with a root key, extract it
+        if isinstance(inv_list, dict):
+            if "__root__" in inv_list:
+                inv_list = inv_list["__root__"]
+            elif "root" in inv_list:
+                inv_list = inv_list["root"]
+
+        # Ensure we have an iterable list
+        if not isinstance(inv_list, (list, tuple)):
+            inv_list = [inv_list]
+
+        for inv_control in inv_list:
             sim.apply_inverter_control(inv_control)
 
         pv_sets = sub_pv_set.json
