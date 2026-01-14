@@ -1,0 +1,8 @@
+helics
+pydantic
+pyarrow
+numpy
+pandas
+fastapi
+uvicorn
+oedisi

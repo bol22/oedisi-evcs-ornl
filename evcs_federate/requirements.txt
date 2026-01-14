@@ -1,0 +1,8 @@
+helics
+pydantic
+oedisi
+numpy
+scipy
+fastapi
+uvicorn
+OpenDSSDirect.py[extras]==0.7.0
